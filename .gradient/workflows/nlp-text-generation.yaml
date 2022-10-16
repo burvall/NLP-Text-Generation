@@ -1,0 +1,66 @@
+# YAML file for Paperspace Gradient NLP Text Generation Tutorial example
+# It runs the GPT-2 model from HuggingFace: https://huggingface.co/gpt2
+#
+# The Workflow is triggered when this is present in the .gradient/workflows/ directory in a GitHub
+# repository linked to the user's Gradient project
+# It clones this repo and then in turn calls the file nlp_text_generation.py
+# This file outputs the generated text to outputs.txt in a Gradient-managed Dataset
+# This Workflow runs on the Paperspace HuggingFace NLP container (paperspace/transformers-gpu:0.4.0)
+#
+# See the Gradient documentation page for more details:
+# https://docs.paperspace.com/gradient/get-started/tutorials-list/example-workflow-nlp-text-generator
+#
+# Last updated: Nov 03rd 2021
+
+on:
+  github:
+    branches:
+      only: main
+
+jobs:
+
+  cloneRepo:
+    resources:
+      instance-type: C4
+    outputs:
+      repo:
+        type: volume
+    uses: git-checkout@v1
+    with:
+      url: context.event.github.url
+      ref: context.event.github.ref
+
+  generateText:
+    resources:
+      instance-type: C5
+    needs:
+      - cloneRepo
+    inputs:
+      repo: cloneRepo.outputs.repo
+    outputs:
+      generatedText:
+        type: dataset
+        with:
+          ref: demo-dataset
+    uses: script@v1
+    with:
+      script: |-
+        cp -R /inputs/repo /nlp
+        cd /nlp
+        pip3 install -U transformers
+        python3 nlp_text_generation.py
+        mv output.txt /outputs/generatedText
+        ls "-aFlR" /outputs/generatedText
+      image: paperspace/transformers-gpu:0.4.0
+
+# Appendix: Extra details
+#
+# pip3 install updates transformers from the version on the image to the latest
+# This isn't required, but gives access to more models
+# The script fails if "python" is used instead of "python3"
+# Everything here is assumed to be running in the main branch of the repository
+# The generateText job is OK on C5 (CPU) or P4000 (GPU) but may fail on smaller instances
+# if they have insufficient memory
+# The output dataset used is "demo-dataset", which is auto-generated in Gradient for each team
+# This avoids requiring the creation of an output dataset before the YAML is run
+# The output can be directed elsewhere, provided the alternative output Dataset location has been created
